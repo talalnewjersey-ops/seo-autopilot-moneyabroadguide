@@ -1,3 +1,4 @@
+import os
 print("DEBUG KEY:", os.getenv("OPENAI_API_KEY"))
 print("WP_URL:", os.getenv("WP_URL"))
 
