@@ -1,41 +1,4 @@
-name: RUN FULL SITE OPTIMIZATION
-
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
-on:
-  workflow_dispatch:
-
-jobs:
-  seo_audit:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install dependencies
-        run: |
-          pip install requests beautifulsoup4
-
-      - name: Run basic SEO audit
-        run: |
-          python - <<EOF
-          import requests
-          from bs4 import BeautifulSoup
-
-          url = "https://moneyabroadguide.com"
-          res = requests.get(url)
-          soup = BeautifulSoup(res.text, "html.parser")
-
-          title = soup.title.string if soup.title else "Missing"
-          h1 = [h.text for h in soup.find_all("h1")]
-
-          print("TITLE:", title)
-          print("H1:", h1)
-          EOF
+- name: Run SEO scanner
+  run: |
+    pip install requests beautifulsoup4
+    python main.py
