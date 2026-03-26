@@ -1,3 +1,5 @@
+print("DEBUG KEY:", os.getenv("OPENAI_API_KEY"))
+
 import requests
 import os
 from openai import OpenAI
