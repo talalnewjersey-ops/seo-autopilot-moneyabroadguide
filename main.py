@@ -29,12 +29,16 @@ def seo_scan(label):
 # 1️⃣ SCAN AVANT
 before = seo_scan("BEFORE")
 
-# 2️⃣ SIMULATION CORRECTION (temporaire)
-print("\nApplying AI optimization...")
+# 🔴 ICI TU AJOUTES TES FIXES 👇
 
-# (ici on ajoutera vraies corrections après)
+print("\n===== AI FIXES =====")
 
-# 3️⃣ SCAN APRÈS
+print("→ Add meta description")
+print("→ Improve title length")
+print("→ Add alt tags to images")
+print("→ Increase content length")
+
+# 2️⃣ SCAN APRÈS
 after = seo_scan("AFTER")
 
 print("\n===== IMPROVEMENT =====")
