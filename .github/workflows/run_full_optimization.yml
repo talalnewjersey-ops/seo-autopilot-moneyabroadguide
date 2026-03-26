@@ -25,6 +25,12 @@ jobs:
         run: |
           python main.py
 
+      - name: Debug ENV (IMPORTANT)
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          echo "OPENAI KEY EXISTS: ${OPENAI_API_KEY:+YES}"
+
       - name: Run AI Auto Fix
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
