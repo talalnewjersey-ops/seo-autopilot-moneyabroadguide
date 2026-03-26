@@ -1,20 +1,10 @@
 name: RUN FULL SITE OPTIMIZATION
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 on:
   workflow_dispatch:
-    inputs:
-      audit_only:
-        description: "Run audit only"
-        required: true
-        default: "true"
-      enable_safe_autofix:
-        description: "Enable safe autofix"
-        required: true
-        default: "false"
-      dry_run:
-        description: "Dry run mode"
-        required: true
-        default: "true"
 
 jobs:
   seo_audit:
