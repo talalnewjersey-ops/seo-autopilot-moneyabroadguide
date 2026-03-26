@@ -1,6 +1,3 @@
-- name: Run AI Auto Fix
-  run: python auto_fix.py
-
 name: RUN FULL SITE OPTIMIZATION
 
 on:
@@ -9,12 +6,6 @@ on:
 jobs:
   seo_audit:
     runs-on: ubuntu-latest
-
-    env:
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      WP_URL: ${{ secrets.WP_URL }}
-      WP_USER: ${{ secrets.WP_USER }}
-      WP_PASSWORD: ${{ secrets.WP_PASSWORD }}
 
     steps:
       - name: Checkout repo
@@ -30,6 +21,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests beautifulsoup4 openai
 
-      - name: Run AI SEO system
+      - name: Run SEO scan
         run: |
           python main.py
+
+      - name: Run AI Auto Fix
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          WP_URL: ${{ secrets.WP_URL }}
+          WP_USER: ${{ secrets.WP_USER }}
+          WP_PASSWORD: ${{ secrets.WP_PASSWORD }}
+        run: |
+          python auto_fix.py
