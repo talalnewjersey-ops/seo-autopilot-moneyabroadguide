@@ -1,25 +1,23 @@
 import requests
 from bs4 import BeautifulSoup
 
-sitemap = "https://moneyabroadguide.com/sitemap_index.xml"
+print("START SCAN")
 
-res = requests.get(sitemap)
-soup = BeautifulSoup(res.text, "xml")
+try:
+    url = "https://moneyabroadguide.com"
 
-urls = [loc.text for loc in soup.find_all("loc")]
+    response = requests.get(url, timeout=10)
 
-for url in urls[:10]:
-    try:
-        r = requests.get(url)
-        s = BeautifulSoup(r.text, "html.parser")
+    if response.status_code != 200:
+        print("Website not reachable")
+    else:
+        soup = BeautifulSoup(response.text, "html.parser")
 
-        title = s.title.string if s.title else "No title"
-        h1 = [h.text.strip() for h in s.find_all("h1")]
+        title = soup.title.string if soup.title else "No title"
+        h1 = [h.text.strip() for h in soup.find_all("h1")]
 
-        print(url)
         print("TITLE:", title)
         print("H1:", h1)
-        print("-----")
 
-    except Exception as e:
-        print("Error:", e)
+except Exception as e:
+    print("ERROR:", str(e))
