@@ -1,23 +1,36 @@
 import requests
 from bs4 import BeautifulSoup
 
-print("START SCAN")
+print("START FULL SEO SCAN")
 
-try:
-    url = "https://moneyabroadguide.com"
+urls = [
+    "https://moneyabroadguide.com"
+]
 
-    response = requests.get(url, timeout=10)
+for url in urls:
+    try:
+        r = requests.get(url, timeout=10)
+        soup = BeautifulSoup(r.text, "html.parser")
 
-    if response.status_code != 200:
-        print("Website not reachable")
-    else:
-        soup = BeautifulSoup(response.text, "html.parser")
-
-        title = soup.title.string if soup.title else "No title"
+        title = soup.title.string if soup.title else ""
         h1 = [h.text.strip() for h in soup.find_all("h1")]
+        words = len(soup.get_text().split())
 
+        score = 100
+
+        if not title:
+            score -= 20
+        if not h1:
+            score -= 20
+        if words < 600:
+            score -= 30
+
+        print("------")
+        print("URL:", url)
         print("TITLE:", title)
         print("H1:", h1)
+        print("WORDS:", words)
+        print("SEO SCORE:", score)
 
-except Exception as e:
-    print("ERROR:", str(e))
+    except Exception as e:
+        print("ERROR:", e)
