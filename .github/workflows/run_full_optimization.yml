@@ -1,0 +1,51 @@
+name: RUN FULL SITE OPTIMIZATION
+
+on:
+  workflow_dispatch:
+    inputs:
+      audit_only:
+        description: "Run audit only"
+        required: true
+        default: "true"
+      enable_safe_autofix:
+        description: "Enable safe autofix"
+        required: true
+        default: "false"
+      dry_run:
+        description: "Dry run mode"
+        required: true
+        default: "true"
+
+jobs:
+  seo_audit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install requests beautifulsoup4
+
+      - name: Run basic SEO audit
+        run: |
+          python - <<EOF
+          import requests
+          from bs4 import BeautifulSoup
+
+          url = "https://moneyabroadguide.com"
+          res = requests.get(url)
+          soup = BeautifulSoup(res.text, "html.parser")
+
+          title = soup.title.string if soup.title else "Missing"
+          h1 = [h.text for h in soup.find_all("h1")]
+
+          print("TITLE:", title)
+          print("H1:", h1)
+          EOF
