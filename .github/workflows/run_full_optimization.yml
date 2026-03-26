@@ -1,3 +1,6 @@
+- name: Run AI Auto Fix
+  run: python auto_fix.py
+
 name: RUN FULL SITE OPTIMIZATION
 
 on:
