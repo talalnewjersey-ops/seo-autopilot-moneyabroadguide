@@ -1,36 +1,43 @@
 import requests
 from bs4 import BeautifulSoup
 
-print("START FULL SEO SCAN")
+print("FULL SITE SEO SCAN")
 
-urls = [
-    "https://moneyabroadguide.com"
-]
+SITEMAP = "https://moneyabroadguide.com/sitemap_index.xml"
 
-for url in urls:
+def get_urls():
+    try:
+        res = requests.get(SITEMAP, timeout=10)
+        soup = BeautifulSoup(res.text, "xml")
+        return [loc.text for loc in soup.find_all("loc")]
+    except:
+        return []
+
+def analyze(url):
     try:
         r = requests.get(url, timeout=10)
         soup = BeautifulSoup(r.text, "html.parser")
 
         title = soup.title.string if soup.title else ""
-        h1 = [h.text.strip() for h in soup.find_all("h1")]
+        h1 = soup.find_all("h1")
         words = len(soup.get_text().split())
 
         score = 100
 
         if not title:
             score -= 20
-        if not h1:
+        if len(h1) == 0:
             score -= 20
-        if words < 600:
+        if words < 800:
             score -= 30
 
-        print("------")
-        print("URL:", url)
-        print("TITLE:", title)
-        print("H1:", h1)
-        print("WORDS:", words)
-        print("SEO SCORE:", score)
+        return (url, score)
 
-    except Exception as e:
-        print("ERROR:", e)
+    except:
+        return (url, 0)
+
+urls = get_urls()
+
+for url in urls[:15]:
+    page, score = analyze(url)
+    print(page, "→ SEO SCORE:", score)
