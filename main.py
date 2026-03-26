@@ -1,89 +1,34 @@
 import requests
 from bs4 import BeautifulSoup
 
-print("AI SEO OPTIMIZER STARTED")
+URL = "https://moneyabroadguide.com"
 
-SITEMAP = "https://moneyabroadguide.com/sitemap_index.xml"
+print("===== SEO AUDIT START =====")
+print(f"Scanning: {URL}")
 
-def get_urls():
-    try:
-        res = requests.get(SITEMAP, timeout=10)
-        soup = BeautifulSoup(res.text, "xml")
-        return [loc.text for loc in soup.find_all("loc")]
-    except:
-        return []
+try:
+    r = requests.get(URL, timeout=10)
+    soup = BeautifulSoup(r.text, "html.parser")
 
-def generate_seo_improvement(url, title, h1, words):
-    keyword = url.split("/")[-1].replace("-", " ")
+    title = soup.title.string if soup.title else "No title"
+    h1 = soup.find("h1")
+    h1_text = h1.text if h1 else "No H1"
 
-    new_title = f"{keyword.title()} Guide (2026): Everything You Need to Know"
-    meta = f"Learn everything about {keyword}. Complete 2026 guide with tips, strategies, and expert insights for newcomers."
+    score = 0
 
-    suggestions = []
+    if title and len(title) > 10:
+        score += 40
+    if h1:
+        score += 30
+    if len(r.text) > 5000:
+        score += 30
 
-    if words < 800:
-        suggestions.append("👉 Increase content to 1200–2000 words")
+    print("\n===== RESULTS =====")
+    print(f"TITLE: {title}")
+    print(f"H1: {h1_text}")
+    print(f"CONTENT LENGTH: {len(r.text)}")
 
-    if len(h1) == 0:
-        suggestions.append("👉 Add clear H1 with main keyword")
+    print("\n🔥 SEO SCORE:", score, "/100")
 
-    suggestions.append("👉 Add 2–3 internal links")
-    suggestions.append("👉 Add FAQ section")
-    suggestions.append("👉 Add optimized images with ALT text")
-
-    return new_title, meta, suggestions
-
-def analyze(url):
-    try:
-        r = requests.get(url, timeout=10)
-        soup = BeautifulSoup(r.text, "html.parser")
-
-        title = soup.title.string if soup.title else ""
-        h1 = soup.find_all("h1")
-        words = len(soup.get_text().split())
-
-        score = 100
-
-        if not title:
-            score -= 20
-        if len(h1) == 0:
-            score -= 20
-        if words < 800:
-            score -= 30
-
-        new_title, meta, suggestions = generate_seo_improvement(url, title, h1, words)
-
-        return {
-            "url": url,
-            "score": score,
-            "new_title": new_title,
-            "meta": meta,
-            "suggestions": suggestions
-        }
-
-    except:
-        return {
-            "url": url,
-            "score": 0,
-            "new_title": "",
-            "meta": "",
-            "suggestions": ["Error loading page"]
-        }
-
-urls = get_urls()
-
-print("\n===== AI SEO REPORT =====\n")
-
-for url in urls[:10]:
-    data = analyze(url)
-
-    print("URL:", data["url"])
-    print("SEO SCORE:", data["score"])
-    print("NEW TITLE:", data["new_title"])
-    print("META:", data["meta"])
-
-    print("IMPROVEMENTS:")
-    for s in data["suggestions"]:
-        print(s)
-
-    print("------")
+except Exception as e:
+    print("ERROR:", str(e))
