@@ -1,11 +1,4 @@
-- name: Test WordPress Connection
-  env:
-    WP_URL: ${{ secrets.WP_URL }}
-    WP_USER: ${{ secrets.WP_USER }}
-    WP_PASSWORD: ${{ secrets.WP_PASSWORD }}
-  run: python test_wp.py
-
-name: RUN FULL SITE OPTIMIZATION
+- name: RUN FULL SITE OPTIMIZATION
 
 on:
   workflow_dispatch:
@@ -46,3 +39,11 @@ jobs:
           WP_PASSWORD: ${{ secrets.WP_PASSWORD }}
         run: |
           python auto_fix.py
+
+      - name: Test WordPress Connection
+        env:
+          WP_URL: ${{ secrets.WP_URL }}
+          WP_USER: ${{ secrets.WP_USER }}
+          WP_PASSWORD: ${{ secrets.WP_PASSWORD }}
+        run: |
+          python test_wp.py
