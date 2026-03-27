@@ -1,85 +1,31 @@
-import requests
 import os
+import requests
 import json
-from openai import OpenAI
+from requests.auth import HTTPBasicAuth
 
-# ================================
-# 🔐 ENV VARIABLES
-# ================================
-print("DEBUG KEY:", os.getenv("OPENAI_API_KEY"))
-print("WP_URL:", os.getenv("WP_URL"))
+print("===== SAFE AUTO FIX START =====")
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 WP_URL = os.getenv("WP_URL")
 WP_USER = os.getenv("WP_USER")
 WP_PASSWORD = os.getenv("WP_PASSWORD")
 
-print("===== SAFE AUTO FIX START =====")
+headers = {
+    "Authorization": f"Bearer {OPENAI_API_KEY}",
+    "Content-Type": "application/json"
+}
 
-
-# ================================
-# 📥 GET POSTS
-# ================================
+# ===============================
+# GET POSTS FROM WORDPRESS
+# ===============================
 def get_posts():
     url = f"{WP_URL}/wp-json/wp/v2/posts"
     response = requests.get(url)
     return response.json()
 
-
-# ================================
-# 🤖 AI SEO OPTIMIZATION (FIXED)
-# ================================
-def generate_ai_fix(title, content):
-    try:
-        prompt = f"""
-Return ONLY valid JSON.
-
-Do NOT write anything else.
-
-Format:
-{{
-"title": "...",
-"meta": "...",
-"content": "..."
-}}
-
-Optimize this article for SEO:
-
-Title: {title}
-Content: {content[:4000]}
-"""
-
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.2,
-            max_tokens=2000
-        )
-
-        raw = response.choices[0].message.content.strip()
-
-        # 🔥 CLEAN JSON SAFE
-        if raw.startswith("```"):
-            raw = raw.replace("```json", "").replace("```", "").strip()
-
-        data = json.loads(raw)
-
-        # 🔥 VALIDATION
-        if not all(k in data for k in ["title", "meta", "content"]):
-            print("❌ JSON STRUCTURE INVALID")
-            return None
-
-        return data
-
-    except Exception as e:
-        print("❌ OPENAI ERROR:", str(e))
-        return None
-
-
-# ================================
-# 🌐 UPDATE WORDPRESS
-# ================================
+# ===============================
+# UPDATE POST WORDPRESS
+# ===============================
 def update_post(post_id, data):
     url = f"{WP_URL}/wp-json/wp/v2/posts/{post_id}"
 
@@ -87,72 +33,96 @@ def update_post(post_id, data):
         "title": data["title"],
         "content": data["content"],
         "excerpt": data["meta"],
-        "status": "publish"  # 🔥 IMPORTANT
+        "status": "publish"
     }
 
     response = requests.post(
         url,
-        json=payload,
-        auth=(WP_USER, WP_PASSWORD)
+        auth=HTTPBasicAuth(WP_USER, WP_PASSWORD),
+        json=payload
     )
 
     print(f"Updated post {post_id} → {response.status_code}")
+    if response.status_code != 200:
+        print(response.text)
+
+# ===============================
+# OPENAI SEO OPTIMIZATION
+# ===============================
+def optimize_content(title, content):
+    prompt = f"""
+You are a senior SEO expert specialized in Google ranking (2026) and YMYL finance content.
+
+Optimize this article:
+
+TITLE: {title}
+CONTENT: {content}
+
+RETURN JSON ONLY:
+
+{{
+"title": "...",
+"meta": "...",
+"content": "FULL OPTIMIZED HTML"
+}}
+"""
+
+    try:
+        response = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers=headers,
+            json={
+                "model": "gpt-5.3",
+                "messages": [
+                    {"role": "user", "content": prompt}
+                ],
+                "temperature": 0.7
+            },
+            timeout=60
+        )
+
+        result = response.json()
+
+        content_raw = result["choices"][0]["message"]["content"]
+
+        # Nettoyage JSON
+        content_raw = content_raw.strip().replace("```json", "").replace("```", "")
+
+        data = json.loads(content_raw)
+
+        return data
+
+    except Exception as e:
+        print("❌ OPENAI ERROR:", e)
+        return None
+
+# ===============================
+# MAIN PROCESS
+# ===============================
+posts = get_posts()
+
+for post in posts[:3]:  # limite pour test
+    post_id = post["id"]
+    title = post["title"]["rendered"]
+    content = post["content"]["rendered"]
+
+    print("\n===== ANALYZING =====")
+    print(title)
+
+    data = optimize_content(title, content)
+
+    if not data:
+        print("→ Skipped (AI error)")
+        continue
+
+    print("→ AI optimization OK")
+
     print("========== SEO RESULT ==========")
     print("NEW TITLE:", data["title"])
     print("META:", data["meta"])
     print("CONTENT LENGTH:", len(data["content"]))
 
+    # 🔥 UPDATE WORDPRESS (IMPORTANT)
+    update_post(post_id, data)
 
-# ================================
-# 🔍 SEO SCORE SYSTEM
-# ================================
-def seo_score(content):
-    score = 0
-
-    if "<title" in content.lower():
-        score += 25
-
-    if 'meta name="description"' in content.lower():
-        score += 25
-
-    if "alt=" in content.lower():
-        score += 25
-
-    if len(content) > 3000:
-        score += 25
-
-    print(f"SEO SCORE: {score}/100")
-    return score
-
-
-# ================================
-# 🚀 MAIN
-# ================================
-def run():
-    posts = get_posts()
-
-    for post in posts[:1]:
-        print("\n===== ANALYZING =====")
-        print(post["title"]["rendered"])
-
-        before = seo_score(post["content"]["rendered"])
-
-        ai_data = generate_ai_fix(
-            post["title"]["rendered"],
-            post["content"]["rendered"]
-        )
-
-        if not ai_data:
-            print("→ AI FAILED → skipping safely")
-            continue
-
-        print("→ AI optimization OK")
-
-        after = seo_score(ai_data["content"])
-        print(f"IMPROVEMENT: {before} → {after}")
-
-        update_post(post["id"], ai_data)
-
-
-if __name__ == "__main__":
-    run()
+print("\n===== AUTO FIX COMPLETE =====")
