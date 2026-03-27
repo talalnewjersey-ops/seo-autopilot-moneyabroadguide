@@ -44,26 +44,27 @@ def update_post(post_id, data):
 
     print(f"Updated post {post_id} → {response.status_code}")
     if response.status_code != 200:
-        print(response.text)
+        print("❌ UPDATE ERROR:", response.text)
 
 # ===============================
 # OPENAI SEO OPTIMIZATION
 # ===============================
 def optimize_content(title, content):
+
     prompt = f"""
-You are a senior SEO expert specialized in Google ranking (2026) and YMYL finance content.
+You are a senior SEO expert.
 
 Optimize this article:
 
 TITLE: {title}
 CONTENT: {content}
 
-RETURN JSON ONLY:
+RETURN ONLY VALID JSON:
 
 {{
 "title": "...",
 "meta": "...",
-"content": "FULL OPTIMIZED HTML"
+"content": "HTML optimized"
 }}
 """
 
@@ -72,7 +73,7 @@ RETURN JSON ONLY:
             "https://api.openai.com/v1/chat/completions",
             headers=headers,
             json={
-                "model": "gpt-5.3",
+                "model": "gpt-4o-mini",
                 "messages": [
                     {"role": "user", "content": prompt}
                 ],
@@ -82,6 +83,14 @@ RETURN JSON ONLY:
         )
 
         result = response.json()
+
+        # 🔥 DEBUG IMPORTANT
+        print("RAW OPENAI RESPONSE:")
+        print(result)
+
+        if "choices" not in result:
+            print("❌ INVALID OPENAI RESPONSE")
+            return None
 
         content_raw = result["choices"][0]["message"]["content"]
 
@@ -101,7 +110,8 @@ RETURN JSON ONLY:
 # ===============================
 posts = get_posts()
 
-for post in posts[:3]:  # limite pour test
+for post in posts[:3]:
+
     post_id = post["id"]
     title = post["title"]["rendered"]
     content = post["content"]["rendered"]
@@ -122,7 +132,6 @@ for post in posts[:3]:  # limite pour test
     print("META:", data["meta"])
     print("CONTENT LENGTH:", len(data["content"]))
 
-    # 🔥 UPDATE WORDPRESS (IMPORTANT)
     update_post(post_id, data)
 
 print("\n===== AUTO FIX COMPLETE =====")
