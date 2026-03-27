@@ -43,6 +43,7 @@ def update_post(post_id, data):
     )
 
     print(f"Updated post {post_id} → {response.status_code}")
+
     if response.status_code != 200:
         print("❌ UPDATE ERROR:", response.text)
 
@@ -52,7 +53,7 @@ def update_post(post_id, data):
 def optimize_content(title, content):
 
     prompt = f"""
-You are a senior SEO expert.
+You are a senior SEO expert specialized in Google ranking (2026) and YMYL finance content.
 
 Optimize this article:
 
@@ -64,53 +65,54 @@ RETURN ONLY VALID JSON:
 {{
 "title": "...",
 "meta": "...",
-"content": "HTML optimized"
+"content": "FULL OPTIMIZED HTML"
 }}
 """
 
-    try:
-        response = requests.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers=headers,
-            json={
-                "model": "gpt-4o-mini",
-                "messages": [
-                    {"role": "user", "content": prompt}
-                ],
-                "temperature": 0.7
-            },
-            timeout=60
-        )
+    for attempt in range(3):
+        try:
+            response = requests.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers=headers,
+                json={
+                    "model": "gpt-4o-mini",
+                    "messages": [
+                        {"role": "user", "content": prompt}
+                    ],
+                    "temperature": 0.7
+                },
+                timeout=120  # 🔥 FIX TIMEOUT
+            )
 
-        result = response.json()
+            result = response.json()
 
-        # 🔥 DEBUG IMPORTANT
-        print("RAW OPENAI RESPONSE:")
-        print(result)
+            print("RAW OPENAI RESPONSE:")
+            print(result)
 
-        if "choices" not in result:
-            print("❌ INVALID OPENAI RESPONSE")
-            return None
+            if "choices" not in result:
+                print("❌ INVALID OPENAI RESPONSE")
+                continue
 
-        content_raw = result["choices"][0]["message"]["content"]
+            content_raw = result["choices"][0]["message"]["content"]
 
-        # Nettoyage JSON
-        content_raw = content_raw.strip().replace("```json", "").replace("```", "")
+            # nettoyage JSON
+            content_raw = content_raw.strip().replace("```json", "").replace("```", "")
 
-        data = json.loads(content_raw)
+            data = json.loads(content_raw)
 
-        return data
+            return data
 
-    except Exception as e:
-        print("❌ OPENAI ERROR:", e)
-        return None
+        except Exception as e:
+            print(f"❌ OPENAI ERROR (try {attempt+1}/3):", e)
+
+    return None
 
 # ===============================
 # MAIN PROCESS
 # ===============================
 posts = get_posts()
 
-for post in posts[:3]:
+for post in posts[:3]:  # limite test
 
     post_id = post["id"]
     title = post["title"]["rendered"]
@@ -132,6 +134,7 @@ for post in posts[:3]:
     print("META:", data["meta"])
     print("CONTENT LENGTH:", len(data["content"]))
 
+    # 🔥 UPDATE WORDPRESS (IMPORTANT)
     update_post(post_id, data)
 
 print("\n===== AUTO FIX COMPLETE =====")
