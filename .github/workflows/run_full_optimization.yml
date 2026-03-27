@@ -1,3 +1,10 @@
+- name: Test WordPress Connection
+  env:
+    WP_URL: ${{ secrets.WP_URL }}
+    WP_USER: ${{ secrets.WP_USER }}
+    WP_PASSWORD: ${{ secrets.WP_PASSWORD }}
+  run: python test_wp.py
+
 name: RUN FULL SITE OPTIMIZATION
 
 on:
