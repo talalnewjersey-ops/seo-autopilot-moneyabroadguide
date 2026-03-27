@@ -1,4 +1,4 @@
-- name: RUN FULL SITE OPTIMIZATION
+name: RUN FULL SITE OPTIMIZATION
 
 on:
   workflow_dispatch:
