@@ -19,7 +19,6 @@ print("===== SAFE AUTO FIX START =====")
 def generate_ai_fix(title, content):
     try:
         prompt = f"""
-prompt = f"""
 You are a professional SEO expert specialized in finance (YMYL).
 
 Your goal:
@@ -33,7 +32,7 @@ IMPORTANT:
 You MUST:
 
 1. Optimize title (max 60 characters)
-2. Add meta description (150–160 characters)
+2. Add meta description (150-160 characters)
 3. Improve readability (short paragraphs)
 4. Add H2 and H3 structure
 5. Add FAQ section (3 questions)
