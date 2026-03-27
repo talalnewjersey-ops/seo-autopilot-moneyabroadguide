@@ -1,7 +1,6 @@
 import requests
 import os
 import json
-import time
 from openai import OpenAI
 
 # ================================
@@ -29,51 +28,53 @@ def get_posts():
 
 
 # ================================
-# 🤖 AI SEO OPTIMIZATION (FAST VERSION)
+# 🤖 AI SEO OPTIMIZATION (FIXED)
 # ================================
 def generate_ai_fix(title, content):
-    for attempt in range(3):
-        try:
-            prompt = f"""
-You are an SEO expert.
+    try:
+        prompt = f"""
+Return ONLY valid JSON.
 
-Optimize this article for SEO and readability.
+Do NOT write anything else.
 
-KEEP HTML.
-
-Improve:
-- Title
-- Meta description
-- Structure (H2, H3)
-- Add FAQ (3 questions)
-- Add short CTA
-
-Return ONLY JSON:
-
+Format:
 {{
 "title": "...",
 "meta": "...",
-"content": "optimized html"
+"content": "..."
 }}
 
+Optimize this article for SEO:
+
 Title: {title}
-Content: {content}
+Content: {content[:4000]}
 """
 
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.3,
-                timeout=60
-            )
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,
+            max_tokens=2000
+        )
 
-            return json.loads(response.choices[0].message.content)
+        raw = response.choices[0].message.content.strip()
 
-        except Exception as e:
-            print(f"❌ OPENAI ERROR (try {attempt+1}):", str(e))
-            time.sleep(3)
+        # 🔥 CLEAN JSON SAFE
+        if raw.startswith("```"):
+            raw = raw.replace("```json", "").replace("```", "").strip()
 
-    return None
+        data = json.loads(raw)
+
+        # 🔥 VALIDATION
+        if not all(k in data for k in ["title", "meta", "content"]):
+            print("❌ JSON STRUCTURE INVALID")
+            return None
+
+        return data
+
+    except Exception as e:
+        print("❌ OPENAI ERROR:", str(e))
+        return None
 
 
 # ================================
@@ -86,7 +87,7 @@ def update_post(post_id, data):
         "title": data["title"],
         "content": data["content"],
         "excerpt": data["meta"],
-        "status": "publish"
+        "status": "publish"  # 🔥 IMPORTANT
     }
 
     response = requests.post(
@@ -96,11 +97,14 @@ def update_post(post_id, data):
     )
 
     print(f"Updated post {post_id} → {response.status_code}")
-    print("RESPONSE:", response.text)
+    print("========== SEO RESULT ==========")
+    print("NEW TITLE:", data["title"])
+    print("META:", data["meta"])
+    print("CONTENT LENGTH:", len(data["content"]))
 
 
 # ================================
-# 🔍 SEO SCORE
+# 🔍 SEO SCORE SYSTEM
 # ================================
 def seo_score(content):
     score = 0
@@ -127,10 +131,6 @@ def seo_score(content):
 def run():
     posts = get_posts()
 
-    if not posts:
-        print("❌ No posts found")
-        return
-
     for post in posts[:1]:
         print("\n===== ANALYZING =====")
         print(post["title"]["rendered"])
@@ -139,29 +139,20 @@ def run():
 
         ai_data = generate_ai_fix(
             post["title"]["rendered"],
-            post["content"]["rendered"][:4000]  # 🔥 FIX TIMEOUT
+            post["content"]["rendered"]
         )
 
-        if ai_data:
-            print("→ AI optimization OK")
+        if not ai_data:
+            print("→ AI FAILED → skipping safely")
+            continue
 
-            after = seo_score(ai_data["content"])
+        print("→ AI optimization OK")
 
-            print(f"IMPROVEMENT: {before} → {after}")
+        after = seo_score(ai_data["content"])
+        print(f"IMPROVEMENT: {before} → {after}")
 
-            print("========== SEO RESULT ==========")
-            print("NEW TITLE:", ai_data["title"])
-            print("META:", ai_data["meta"])
-            print("CONTENT LENGTH:", len(ai_data["content"]))
-
-            update_post(post["id"], ai_data)
-
-        else:
-            print("→ Skipped (AI error)")
+        update_post(post["id"], ai_data)
 
 
-# ================================
-# ▶️ START
-# ================================
 if __name__ == "__main__":
     run()
