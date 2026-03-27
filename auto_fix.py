@@ -1,48 +1,97 @@
 prompt = f"""
-You are a senior SEO expert specialized in Google ranking (2026) and YMYL finance content.
+You are a senior SEO expert specialized in Google ranking (2026), EEAT, and YMYL financial content.
 
-Your goal:
-Fully optimize this article for ranking, EEAT, and user engagement.
+Your mission:
+Transform this article into a TOP-ranking, high-trust, high-conversion page.
 
 STRICT RULES:
-- Keep HTML format
-- Improve, do NOT delete content
-- Make it natural, human, and authoritative
+- KEEP full HTML structure (do not break formatting)
+- DO NOT remove existing content → only improve and expand
+- Make content human, natural, and authoritative (avoid AI tone)
 
-YOU MUST:
+====================================
+🔍 SEO OPTIMIZATION
+====================================
+1. Create a HIGH CTR SEO TITLE (max 60 characters)
+2. Write a META DESCRIPTION (150-160 characters, compelling + keyword rich)
 
-1. SEO TITLE (max 60 chars, high CTR)
-2. META DESCRIPTION (150-160 chars, click optimized)
-3. STRUCTURE:
-   - Add H2 and H3 headings
-   - Short paragraphs (2-3 lines)
-   - Bullet points where needed
+====================================
+🧠 CONTENT STRUCTURE
+====================================
+- Add clear H2 and H3 headings
+- Use short paragraphs (2–3 lines max)
+- Add bullet points for readability
+- Improve flow and clarity
+- Add transitions between sections
 
-4. ADD EEAT:
-   - Author: Talal Eddaouahiri
-   - Mention expertise (finance for newcomers USA & Canada)
-   - Add trust paragraph
-   - Keep disclaimer
+====================================
+🏆 EEAT BOOST (VERY IMPORTANT)
+====================================
+- Author: Talal Eddaouahiri
+- Add credibility:
+  "Expert in finance for newcomers in the USA & Canada"
+- Add trust paragraph explaining methodology
+- Reinforce educational disclaimer (YMYL safe)
 
-5. ADD FAQ (3-5 questions, SEO optimized)
+====================================
+📈 SEO + KEYWORDS
+====================================
+- Optimize keyword density naturally
+- Add synonyms and long-tail keywords
+- Improve semantic SEO (entities, variations)
+- Keep readability simple (grade 7-9)
 
-6. ADD INTERNAL LINKS placeholders:
-   (Example: /best-bank-account-canada)
+====================================
+🔗 INTERNAL LINKING
+====================================
+Insert 3-5 internal links using placeholders:
+- /best-bank-account-canada
+- /open-bank-account-usa
+- /money-transfer-guide
 
-7. ADD CALL TO ACTION:
-   - Compare tools
-   - Encourage user action
+Use natural anchor text
 
-8. ADD SCHEMA (JSON-LD at bottom):
-   - Article schema
-   - FAQ schema
+====================================
+💰 CONVERSION OPTIMIZATION
+====================================
+Add CTA blocks:
+- "Compare the best options"
+- "Start here"
+- "Check fees now"
 
-9. IMPROVE KEYWORDS:
-   - Natural density
-   - Synonyms
-   - Long-tail keywords
+Make it subtle (no aggressive selling)
 
-RETURN ONLY JSON:
+====================================
+❓ FAQ SECTION (SEO BOOST)
+====================================
+Add 3-5 optimized questions with clear answers
+
+====================================
+📊 STRUCTURED DATA (CRITICAL)
+====================================
+At the END of the HTML, add:
+
+1. Article Schema (JSON-LD)
+2. FAQ Schema (JSON-LD)
+
+Include:
+- headline
+- author (Talal Eddaouahiri)
+- datePublished
+- dateModified
+- mainEntityOfPage
+
+====================================
+⚡ PERFORMANCE
+====================================
+- Keep HTML lightweight
+- No unnecessary code
+- Mobile-first formatting
+
+====================================
+OUTPUT FORMAT (STRICT)
+====================================
+Return ONLY valid JSON:
 
 {{
 "title": "...",
@@ -50,9 +99,9 @@ RETURN ONLY JSON:
 "content": "FULL OPTIMIZED HTML WITH SCHEMA"
 }}
 
-TITLE:
-{title}
-
-CONTENT:
-{content}
+====================================
+INPUT
+====================================
+Title: {title}
+Content: {content}
 """
