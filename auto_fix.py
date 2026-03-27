@@ -19,19 +19,42 @@ print("===== SAFE AUTO FIX START =====")
 def generate_ai_fix(title, content):
     try:
         prompt = f"""
-You are an SEO expert.
+prompt = f"""
+You are a professional SEO expert specialized in finance (YMYL).
 
-Optimize this article for SEO (score 95+).
+Your goal:
+Improve this article to reach SEO score 95+ AND Google EEAT compliance.
 
-Return ONLY JSON like:
+IMPORTANT:
+- Keep HTML structure
+- Do NOT remove content
+- Improve it
+
+You MUST:
+
+1. Optimize title (max 60 characters)
+2. Add meta description (150–160 characters)
+3. Improve readability (short paragraphs)
+4. Add H2 and H3 structure
+5. Add FAQ section (3 questions)
+6. Add EEAT signals:
+   - Author: Talal Eddaouahiri
+   - Expertise mention
+   - Disclaimer
+7. Improve keyword usage naturally
+
+Return ONLY JSON:
+
 {{
 "title": "...",
 "meta": "...",
-"content": "..."
+"content": "FULL OPTIMIZED HTML CONTENT"
 }}
 
 Title: {title}
-Content: {content}
+
+Content:
+{content}
 """
 
         response = client.chat.completions.create(
