@@ -21,11 +21,6 @@ WP_URL = WP_BASE_URL.rstrip("/") + "/wp-json/wp/v2/posts"
 
 MAX_CONTENT_LENGTH = 25000
 
-HEADERS = {
-    "Authorization": f"Bearer {OPENAI_API_KEY}",
-    "Content-Type": "application/json"
-}
-
 # ==============================
 # UTILS
 # ==============================
@@ -49,7 +44,7 @@ def limit_content(content):
     return content
 
 # ==============================
-# OPENAI CALL
+# OPENAI CALL (FIXED)
 # ==============================
 
 def call_openai(prompt):
@@ -59,9 +54,12 @@ def call_openai(prompt):
         try:
             response = requests.post(
                 url,
-                headers=HEADERS,
+                headers={
+                    "Authorization": f"Bearer {OPENAI_API_KEY}",
+                    "Content-Type": "application/json"
+                },
                 json={
-                    "model": "gpt-5.3",
+                    "model": "gpt-4o-mini",  # 🔥 stable
                     "messages": [
                         {"role": "system", "content": "You are a finance SEO expert (YMYL compliant)."},
                         {"role": "user", "content": prompt}
@@ -72,7 +70,20 @@ def call_openai(prompt):
             )
 
             data = response.json()
-            return data["choices"][0]["message"]["content"]
+
+            print("🔍 RAW OPENAI RESPONSE:", data)
+
+            # ✅ FORMAT 1 (classique)
+            if "choices" in data:
+                return data["choices"][0]["message"]["content"]
+
+            # ✅ FORMAT 2 (nouveaux modèles)
+            elif "output" in data:
+                return data["output"][0]["content"][0]["text"]
+
+            else:
+                print("❌ Format inconnu OpenAI")
+                return None
 
         except Exception as e:
             print(f"❌ Retry {i+1} failed:", e)
@@ -91,12 +102,12 @@ Optimize this article for SEO (RankMath 90+).
 STRICT RULES:
 - Keep clean HTML
 - No broken tags
-- No inline JS except schema
 - Add H2/H3 structure
-- Add FAQ (3-5 questions)
-- Add internal linking placeholders
+- Add FAQ section (3-5 questions)
 - Add Article + FAQ schema
-- Improve readability (human tone)
+- Improve readability
+- Human tone (not AI)
+- No fluff
 
 Return ONLY JSON:
 
@@ -200,7 +211,6 @@ def process_posts():
             print("❌ ERREUR ARTICLE:", e)
 
     print("\n===== ✅ AUTO FIX COMPLETE =====")
-
 
 # ==============================
 # RUN
