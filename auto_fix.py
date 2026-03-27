@@ -1,172 +1,194 @@
-import os
 import requests
 import json
+import re
 import time
-from openai import OpenAI
+from requests.auth import HTTPBasicAuth
 
-# =============================
+# ==============================
 # CONFIG
-# =============================
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-WP_URL = os.getenv("WP_URL")
-WP_USER = os.getenv("WP_USER")
-WP_PASSWORD = os.getenv("WP_PASSWORD")
+# ==============================
 
-client = OpenAI(api_key=OPENAI_API_KEY)
+OPENAI_API_KEY = "YOUR_OPENAI_API_KEY"
+WP_URL = "YOUR_WP_URL/wp-json/wp/v2/posts"
+WP_USER = "YOUR_WP_USER"
+WP_PASSWORD = "YOUR_WP_PASSWORD"
 
-# =============================
-# OPENAI CALL (ULTRA STABLE)
-# =============================
+MAX_CONTENT_LENGTH = 25000
+
+HEADERS = {
+    "Authorization": f"Bearer {OPENAI_API_KEY}",
+    "Content-Type": "application/json"
+}
+
+# ==============================
+# UTILS
+# ==============================
+
+def extract_json(text):
+    try:
+        return json.loads(text)
+    except:
+        match = re.search(r"\{.*\}", text, re.DOTALL)
+        if match:
+            return json.loads(match.group())
+        else:
+            raise ValueError("JSON not found")
+
+def clean_html(content):
+    content = content.replace("```html", "").replace("```", "")
+    return content.strip()
+
+def limit_content(content):
+    if len(content) > MAX_CONTENT_LENGTH:
+        return content[:MAX_CONTENT_LENGTH] + "..."
+    return content
+
+# ==============================
+# OPENAI CALL
+# ==============================
+
 def call_openai(prompt):
-    for attempt in range(3):
-        try:
-            print(f"🚀 OpenAI call attempt {attempt+1}")
+    url = "https://api.openai.com/v1/chat/completions"
 
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {"role": "system", "content": "You are a senior SEO expert."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.7,
-                timeout=300
+    for i in range(3):
+        try:
+            response = requests.post(
+                url,
+                headers=HEADERS,
+                json={
+                    "model": "gpt-5.3",
+                    "messages": [
+                        {"role": "system", "content": "You are a SEO expert for finance YMYL websites."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    "temperature": 0.7
+                },
+                timeout=30
             )
 
-            content = response.choices[0].message.content
-
-            print("RAW OPENAI RESPONSE:")
-            print(content)
-
-            # Clean JSON
-            content = content.replace("```json", "").replace("```", "").strip()
-
-            return content
+            result = response.json()
+            return result["choices"][0]["message"]["content"]
 
         except Exception as e:
-            print(f"❌ OPENAI ERROR (try {attempt+1}/3): {e}")
-            time.sleep(5)
+            print(f"Retry {i+1} failed:", e)
+            time.sleep(2)
 
     return None
 
-# =============================
-# GET POSTS
-# =============================
-def get_posts():
-    url = f"{WP_URL}/wp-json/wp/v2/posts"
-    response = requests.get(url)
+# ==============================
+# SEO PROMPT
+# ==============================
 
-    if response.status_code == 200:
-        return response.json()
-    else:
-        print("❌ Failed to fetch posts")
-        return []
-
-# =============================
-# UPDATE POST
-# =============================
-def update_post(post_id, data):
-    url = f"{WP_URL}/wp-json/wp/v2/posts/{post_id}"
-
-    payload = {
-        "title": data["title"],
-        "content": data["content"],
-        "excerpt": data["meta"],
-        "status": "publish"
-    }
-
-    response = requests.post(
-        url,
-        json=payload,
-        auth=(WP_USER, WP_PASSWORD)
-    )
-
-    print(f"Updated post {post_id} → {response.status_code}")
-
-# =============================
-# PROMPT SEO
-# =============================
-def build_prompt(content):
+def build_prompt(title, content):
     return f"""
-You are a senior SEO expert specialized in Google ranking (2026) and YMYL finance content.
+Optimize this article for SEO (RankMath 90+).
 
-Your goal:
-Fully optimize this article for ranking, EEAT, and user engagement.
+IMPORTANT:
+- Keep HTML clean
+- Do NOT break structure
+- Add FAQ schema
+- Add Article schema
+- Improve readability
+- Add H2/H3 structure
+- Add internal linking placeholders
 
-STRICT RULES:
-- Keep HTML format
-- Improve, do NOT delete content
-- Make it natural, human, and authoritative
-
-YOU MUST:
-
-1. SEO TITLE (max 60 chars)
-2. META DESCRIPTION (150-160 chars)
-3. STRUCTURE with H2/H3
-4. ADD EEAT (Talal Eddaouahiri)
-5. ADD FAQ
-6. ADD INTERNAL LINKS
-7. ADD CTA
-8. ADD SCHEMA JSON-LD
-9. Improve keywords
-
-RETURN ONLY JSON:
+Return JSON ONLY:
 
 {{
 "title": "...",
 "meta": "...",
-"content": "FULL HTML"
+"content": "FULL HTML CONTENT"
 }}
 
-ARTICLE:
+TITLE:
+{title}
+
+CONTENT:
 {content}
 """
 
-# =============================
-# MAIN
-# =============================
-def main():
+# ==============================
+# FETCH POSTS
+# ==============================
+
+def get_posts():
+    response = requests.get(
+        WP_URL,
+        auth=HTTPBasicAuth(WP_USER, WP_PASSWORD),
+        params={"per_page": 5}
+    )
+    return response.json()
+
+# ==============================
+# UPDATE POST
+# ==============================
+
+def update_post(post_id, title, content, meta):
+    data = {
+        "title": title,
+        "content": content,
+        "excerpt": meta
+    }
+
+    response = requests.post(
+        f"{WP_URL}/{post_id}",
+        auth=HTTPBasicAuth(WP_USER, WP_PASSWORD),
+        json=data
+    )
+
+    if response.status_code == 200:
+        print(f"✅ Updated post {post_id}")
+    else:
+        print(f"❌ Failed update {post_id}", response.text)
+
+# ==============================
+# MAIN PROCESS
+# ==============================
+
+def process_posts():
     print("===== SAFE AUTO FIX START =====")
 
     posts = get_posts()
 
-    for post in posts[:3]:  # limiter pour test
-        print("\n===== ANALYZING =====")
-
-        post_id = post["id"]
-        title = post["title"]["rendered"]
-        content = post["content"]["rendered"]
-
-        print(title)
-        print("SEO SCORE: 50/100")
-
-        prompt = build_prompt(content)
-
-        result = call_openai(prompt)
-
-        if not result:
-            print("→ Skipped (AI error)")
-            continue
-
+    for post in posts:
         try:
-            data = json.loads(result)
-        except:
-            print("❌ JSON ERROR")
-            continue
+            post_id = post["id"]
+            title = post["title"]["rendered"]
+            content = post["content"]["rendered"]
 
-        print("→ AI optimization OK")
+            print(f"\n===== ANALYZING =====")
+            print(title)
 
-        # TRACKING 🔥
-        print("========== SEO RESULT ==========")
-        print("NEW TITLE:", data["title"])
-        print("META:", data["meta"])
-        print("CONTENT LENGTH:", len(data["content"]))
+            prompt = build_prompt(title, content)
+            ai_response = call_openai(prompt)
 
-        update_post(post_id, data)
+            if not ai_response:
+                print("❌ AI failed")
+                continue
+
+            data = extract_json(ai_response)
+
+            new_title = data["title"]
+            new_meta = data["meta"]
+            new_content = clean_html(data["content"])
+            new_content = limit_content(new_content)
+
+            print("========== SEO RESULT ==========")
+            print("NEW TITLE:", new_title)
+            print("META:", new_meta)
+            print("CONTENT LENGTH:", len(new_content))
+
+            update_post(post_id, new_title, new_content, new_meta)
+
+        except Exception as e:
+            print("❌ ERROR:", e)
 
     print("\n===== AUTO FIX COMPLETE =====")
 
-# =============================
+
+# ==============================
 # RUN
-# =============================
+# ==============================
+
 if __name__ == "__main__":
-    main()
+    process_posts()
