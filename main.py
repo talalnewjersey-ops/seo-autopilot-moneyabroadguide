@@ -1,45 +1,37 @@
-def seo_scan(label):
-    import requests
-    from bs4 import BeautifulSoup
-
-    URL = "https://moneyabroadguide.com"
+def seo_scan(label, content):
+    score = 0
 
     print(f"\n===== {label} SEO SCAN =====")
 
-    r = requests.get(URL)
-    soup = BeautifulSoup(r.text, "html.parser")
+    if "<title" in content.lower():
+        print("✔ Title present")
+        score += 20
+    else:
+        print("❌ Missing title")
 
-    score = 0
+    if 'meta name="description"' in content.lower():
+        print("✔ Meta description")
+        score += 20
+    else:
+        print("❌ Missing meta description")
 
-    title = soup.title.string if soup.title else ""
-    if title:
-        score += 30
+    if "alt=" in content.lower():
+        print("✔ Image alt tags")
+        score += 20
+    else:
+        print("❌ Missing alt tags")
 
-    if soup.find("h1"):
-        score += 30
+    if len(content) > 1500:
+        print("✔ Content length OK")
+        score += 20
+    else:
+        print("❌ Content too short")
 
-    if len(r.text) > 5000:
-        score += 40
+    if "<h2" in content.lower():
+        print("✔ Headings present")
+        score += 20
+    else:
+        print("❌ Missing headings")
 
-    print(f"SEO SCORE: {score}/100")
-
+    print(f"\nSEO SCORE: {score}/100")
     return score
-
-
-# 1️⃣ SCAN AVANT
-before = seo_scan("BEFORE")
-
-# 🔴 ICI TU AJOUTES TES FIXES 👇
-
-print("\n===== AI FIXES =====")
-
-print("→ Add meta description")
-print("→ Improve title length")
-print("→ Add alt tags to images")
-print("→ Increase content length")
-
-# 2️⃣ SCAN APRÈS
-after = seo_scan("AFTER")
-
-print("\n===== IMPROVEMENT =====")
-print(f"{before} → {after}")
