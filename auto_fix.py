@@ -21,7 +21,8 @@ AUTHOR_TITLE   = os.getenv("AUTHOR_TITLE", "Financial Writer & Expat Finance Spe
 
 SITE_NAME      = "MoneyAbroadGuide"
 DAYS_REPROCESS = 7
-MAX_AI_CHARS   = 8000
+MAX_AI_CHARS   = 120000   # gpt-4.1-mini context window — no article skipped
+CHUNK_SIZE     = 12000    # Process long articles in sections of this size
 AI_MODEL       = "gpt-4.1-mini"
 THROTTLE_SEC   = 2
 
@@ -304,48 +305,102 @@ def add_legal_disclaimer(content):
 
 # ─────────────────────────────────────────────────────────────
 # FIX 7 — AI content optimization (headings, readability, FAQ)
+#          Handles articles of any length via smart chunking
 # ─────────────────────────────────────────────────────────────
-def optimize_content(content, title):
-    if len(content) > MAX_AI_CHARS:
-        print(f"   ⚠️  {len(content)} chars > {MAX_AI_CHARS} limit — skipping AI")
-        return content, False
+def _optimize_chunk(chunk, title, is_first, is_last):
+    """Optimize a single chunk of HTML content."""
+    faq_instruction = (
+        "5. This is the LAST section: add exactly 3 relevant FAQ items at the very end "
+        "(before any existing bio/disclaimer divs):\n"
+        "   <h2>Frequently Asked Questions</h2>\n"
+        "   <h3>[Specific question about this article topic]?</h3>\n"
+        "   <p>[Clear 2-sentence answer with a specific fact or number.]</p>\n"
+        "   (repeat x3)"
+        if is_last else
+        "5. Do NOT add FAQ items — they will be added in the last section only."
+    )
 
-    prompt = f"""You are a senior SEO editor for MoneyAbroadGuide.com, a finance comparison site for immigrants and expats in USA and Canada.
+    prompt = f"""You are a senior SEO editor for MoneyAbroadGuide.com, a finance site for immigrants and expats.
 
 STRICT RULES:
-- Return ONLY raw HTML. No markdown, no code fences, no text before or after.
+- Return ONLY raw HTML. No markdown, no code fences, no explanation.
 - Do NOT remove or shorten any existing content.
 - Do NOT change facts, numbers, links, or provider names.
-- Keep all existing <div class="affiliate-disclosure">, <div class="legal-disclaimer">, <div class="author-bio"> blocks exactly as-is.
+- Keep all existing disclosure/disclaimer/author-bio divs exactly as-is.
+- This is {"the first" if is_first else "a middle" if not is_last else "the last"} section of a longer article.
 
 TASKS:
 1. Fix any unclosed or malformed HTML tags.
-2. Improve H2 and H3 headings: make them keyword-rich and clear for immigrants/expats searching on Google.
-3. Shorten long sentences. Use active voice. Simple language for non-native English speakers.
-4. Ensure all links to wise.com, remitly.com, ofx.com, xe.com have rel="noopener sponsored" target="_blank".
-5. If no <h2>Frequently Asked Questions</h2> section exists, add 3 relevant FAQ items at the END of the main body (before any bio or disclaimer divs):
-   <h2>Frequently Asked Questions</h2>
-   <h3>[Specific question about this article topic]?</h3>
-   <p>[Clear 2-sentence answer with a specific fact or number.]</p>
-   (repeat x3)
-6. If a comparison table exists, add a "Best for" column with short labels: Low fees / Speed / Large amounts / Rate tools.
+2. Improve H2/H3 headings: keyword-rich, clear for immigrants and expats on Google.
+3. Shorten long sentences. Active voice. Simple English for non-native speakers.
+4. Add rel="noopener sponsored" target="_blank" to affiliate links missing it (wise.com, remitly.com, ofx.com, xe.com).
+{faq_instruction}
+6. If a comparison table exists in this section, add a "Best for" column: Low fees / Speed / Large amounts / Rate tools.
 
 ARTICLE TITLE: {title}
 
-HTML TO IMPROVE:
-{content}"""
+HTML SECTION:
+{chunk}"""
 
-    result = gpt(prompt, max_tokens=4000, timeout=120)
+    result = gpt(prompt, max_tokens=int(len(chunk) / 3) + 2000, timeout=120)
     if not result:
-        return content, False
+        return chunk, False
 
     result = strip_fences(result)
 
-    if len(result) < len(content) * 0.6:
-        print(f"   ⚠️  AI output too short ({len(result)} vs {len(content)}) — discarded")
-        return content, False
+    # Safety: discard if output is less than 55% of input (truncation detected)
+    if len(result) < len(chunk) * 0.55:
+        print(f"      ⚠️  Chunk output too short ({len(result)} vs {len(chunk)}) — kept original")
+        return chunk, False
 
     return result, True
+
+
+def _split_html_at_tag(content, chunk_size):
+    """Split HTML at clean tag boundaries (never mid-tag)."""
+    chunks = []
+    while len(content) > chunk_size:
+        # Find a clean split point near chunk_size — look for a closing block tag
+        split_at = chunk_size
+        for tag in ["</h2>", "</h3>", "</p>", "</ul>", "</ol>", "</table>", "</div>"]:
+            pos = content.rfind(tag, 0, chunk_size)
+            if pos != -1:
+                split_at = pos + len(tag)
+                break
+        chunks.append(content[:split_at])
+        content = content[split_at:]
+    if content.strip():
+        chunks.append(content)
+    return chunks
+
+
+def optimize_content(content, title):
+    char_count = len(content)
+    print(f"   📝 Content size: {char_count:,} chars", end="")
+
+    if char_count <= CHUNK_SIZE:
+        # Short article — optimize in one shot
+        print(" — single pass")
+        chunks = [content]
+    else:
+        # Long article — split into sections and optimize each
+        chunks = _split_html_at_tag(content, CHUNK_SIZE)
+        print(f" — {len(chunks)} chunks of ~{CHUNK_SIZE:,} chars each")
+
+    optimized_chunks = []
+    any_changed = False
+
+    for idx, chunk in enumerate(chunks):
+        is_first = idx == 0
+        is_last  = idx == len(chunks) - 1
+        result, changed = _optimize_chunk(chunk, title, is_first, is_last)
+        optimized_chunks.append(result)
+        if changed:
+            any_changed = True
+        if len(chunks) > 1:
+            print(f"      Chunk {idx+1}/{len(chunks)}: {'✓ optimized' if changed else '— unchanged'}")
+
+    return "".join(optimized_chunks), any_changed
 
 # ─────────────────────────────────────────────────────────────
 # FIX 8 — AI meta title + description
