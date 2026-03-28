@@ -21,10 +21,12 @@ AUTHOR_TITLE   = os.getenv("AUTHOR_TITLE", "Financial Writer & Expat Finance Spe
 
 SITE_NAME      = "MoneyAbroadGuide"
 DAYS_REPROCESS = 7
-MAX_AI_CHARS   = 120000   # gpt-4.1-mini context window — no article skipped
-CHUNK_SIZE     = 12000    # Process long articles in sections of this size
+MAX_AI_CHARS   = 120000
+CHUNK_SIZE     = 10000    # chars per AI chunk
 AI_MODEL       = "gpt-4.1-mini"
-THROTTLE_SEC   = 2
+THROTTLE_SEC   = 1
+GPT_TIMEOUT    = 45       # seconds per GPT call
+GPT_RETRIES    = 2        # retries per chunk
 
 AFFILIATE_DOMAINS = [
     "wise.com", "remitly.com", "ofx.com",
@@ -141,19 +143,21 @@ def wp_update(post_id, data, kind="posts"):
 # ─────────────────────────────────────────────────────────────
 # GPT HELPER
 # ─────────────────────────────────────────────────────────────
-def gpt(prompt, max_tokens=2000, timeout=120):
-    for attempt in range(3):
+def gpt(prompt, max_tokens=2000, timeout=None):
+    t = timeout or GPT_TIMEOUT
+    for attempt in range(GPT_RETRIES):
         try:
             r = client.chat.completions.create(
                 model=AI_MODEL,
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=max_tokens,
-                timeout=timeout,
+                timeout=t,
             )
             return r.choices[0].message.content.strip()
         except Exception as e:
-            print(f"   ⚠️  GPT attempt {attempt+1}/3: {e}")
-            time.sleep(5)
+            print(f"   ⚠️  GPT attempt {attempt+1}/{GPT_RETRIES}: {e}")
+            if attempt < GPT_RETRIES - 1:
+                time.sleep(3)
     return None
 
 def strip_fences(text):
@@ -342,7 +346,7 @@ ARTICLE TITLE: {title}
 HTML SECTION:
 {chunk}"""
 
-    result = gpt(prompt, max_tokens=int(len(chunk) / 3) + 2000, timeout=120)
+    result = gpt(prompt, max_tokens=min(int(len(chunk) / 3) + 1500, 4000))
     if not result:
         return chunk, False
 
@@ -379,28 +383,36 @@ def optimize_content(content, title):
     print(f"   📝 Content size: {char_count:,} chars", end="")
 
     if char_count <= CHUNK_SIZE:
-        # Short article — optimize in one shot
+        # Short article — optimize in one shot (heading + FAQ in same pass)
         print(" — single pass")
-        chunks = [content]
+        result, changed = _optimize_chunk(content, title, is_first=True, is_last=True)
+        return result, changed
     else:
-        # Long article — split into sections and optimize each
+        # Long article — AI optimizes only first chunk (headings, readability)
+        # FAQ and table fixes applied to last chunk only
+        # This keeps runtime predictable: max 2 GPT calls per article
         chunks = _split_html_at_tag(content, CHUNK_SIZE)
-        print(f" — {len(chunks)} chunks of ~{CHUNK_SIZE:,} chars each")
+        print(f" — {len(chunks)} sections, AI on first + last only")
 
-    optimized_chunks = []
-    any_changed = False
+        optimized = []
+        any_changed = False
 
-    for idx, chunk in enumerate(chunks):
-        is_first = idx == 0
-        is_last  = idx == len(chunks) - 1
-        result, changed = _optimize_chunk(chunk, title, is_first, is_last)
-        optimized_chunks.append(result)
-        if changed:
-            any_changed = True
-        if len(chunks) > 1:
-            print(f"      Chunk {idx+1}/{len(chunks)}: {'✓ optimized' if changed else '— unchanged'}")
+        for idx, chunk in enumerate(chunks):
+            is_first = idx == 0
+            is_last  = idx == len(chunks) - 1
 
-    return "".join(optimized_chunks), any_changed
+            if is_first or is_last:
+                result, changed = _optimize_chunk(chunk, title, is_first, is_last)
+                optimized.append(result)
+                if changed:
+                    any_changed = True
+                label = "first" if is_first else "last"
+                print(f"      Section {idx+1}/{len(chunks)} ({label}): {'✓' if changed else '—'}")
+            else:
+                # Middle sections: skip AI, safe fixes already applied upstream
+                optimized.append(chunk)
+
+        return "".join(optimized), any_changed
 
 # ─────────────────────────────────────────────────────────────
 # FIX 8 — AI meta title + description
@@ -416,7 +428,7 @@ Return ONLY valid JSON — no markdown, no explanation:
 
 Article topic: {title}"""
 
-    raw = gpt(prompt, max_tokens=200, timeout=30)
+    raw = gpt(prompt, max_tokens=200)
     if not raw:
         return title[:60], ""
 
