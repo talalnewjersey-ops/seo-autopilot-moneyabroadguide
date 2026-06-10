@@ -19,7 +19,7 @@ token = base64.b64encode(credentials.encode()).decode()
 WP_HEADERS = {
     "Authorization": f"Basic {token}",
     "Content-Type": "application/json",
-    "User-Agent": "MAG-Content-Pipeline/2.0"
+    "User-Agent": "MAG-Content-Pipeline/3.0"
 }
 
 ARTICLES = [
@@ -28,28 +28,24 @@ ARTICLES = [
         "slug": "health-insurance-new-immigrants-usa-2026",
         "focus_keyword": "health insurance for new immigrants USA",
         "country": "USA",
-        "category_slug": "usa",
     },
     {
         "title": "Car Insurance for New Immigrants in the USA (2026)",
         "slug": "car-insurance-new-immigrants-usa-2026",
         "focus_keyword": "car insurance for new immigrants USA",
         "country": "USA",
-        "category_slug": "usa",
     },
     {
         "title": "How to Build Credit in Canada From Zero (2026)",
         "slug": "how-to-build-credit-canada-from-zero-2026",
         "focus_keyword": "how to build credit in Canada from zero",
         "country": "Canada",
-        "category_slug": "canada",
     },
     {
         "title": "Health Insurance for Newcomers to Canada (2026)",
         "slug": "health-insurance-newcomers-canada-2026",
         "focus_keyword": "health insurance newcomers Canada",
         "country": "Canada",
-        "category_slug": "canada",
     },
 ]
 
@@ -113,15 +109,13 @@ for d in existing_drafts:
     backup.append({
         "id": d.get("id"),
         "title": d.get("title", {}).get("rendered", ""),
-        "status": d.get("status"),
         "date": d.get("date"),
         "slug": d.get("slug"),
     })
 
 with open("drafts_backup.json", "w") as f:
     json.dump(backup, f, indent=2)
-
-print(f"Backup saved: drafts_backup.json ({len(backup)} drafts)")
+print(f"Backup saved: {len(backup)} drafts")
 
 deleted_count = 0
 for d in existing_drafts:
@@ -133,217 +127,196 @@ for d in existing_drafts:
     )
     if dr.status_code in [200, 204, 410]:
         deleted_count += 1
-        print(f"  Deleted draft ID {did}: {d.get('title',{}).get('rendered','')[:60]}")
-    else:
-        print(f"  Failed to delete {did}: HTTP {dr.status_code}")
-
+        print(f"  Deleted: ID {did} - {d.get('title',{}).get('rendered','')[:50]}")
 print(f"Deleted {deleted_count}/{len(existing_drafts)} drafts")
 
 # ============================================================
-# STEP 3: GENERATE ARTICLES VIA OPENAI
+# STEP 3: GENERATE ARTICLES - MULTI-SECTION APPROACH
 # ============================================================
 print()
 print("=" * 70)
-print("STEP 3: GENERATING 4 ARTICLES VIA OPENAI GPT-4o")
+print("STEP 3: GENERATING 4 ARTICLES (MULTI-SECTION, 4000+ WORDS EACH)")
 print("=" * 70)
 
-def call_openai(prompt, model="gpt-4o", max_tokens=16000):
+SYSTEM_PROMPT = """You are the lead editor of MoneyAbroadGuide.com, a top authority on immigrant personal finance in the USA and Canada. You write deeply researched, SEO-optimized WordPress content. Your writing is warm, practical, empathetic, and authoritative. Use short paragraphs, clear headings, real numbers, real program names, and speak directly to immigrants."""
+
+def call_openai_section(prompt, max_tokens=4000):
     if not OPENAI_API_KEY:
-        print("ERROR: OPENAI_API_KEY not set")
         return None
-    
     headers = {
         "Authorization": f"Bearer {OPENAI_API_KEY}",
         "Content-Type": "application/json"
     }
     data = {
-        "model": model,
+        "model": "gpt-4o",
         "messages": [
-            {
-                "role": "system",
-                "content": """You are the lead content strategist for MoneyAbroadGuide.com, a top-ranked personal finance website helping immigrants and newcomers navigate financial systems in the USA and Canada. You write authoritative, deeply researched, SEO-optimized articles in HTML format (WordPress-ready). Your writing style is warm, practical, and empathetic — you understand the challenges immigrants face. Articles must be 4000-5000+ words, comprehensive, and fully formatted for WordPress."""
-            },
-            {
-                "role": "user",
-                "content": prompt
-            }
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": prompt}
         ],
         "max_tokens": max_tokens,
         "temperature": 0.7
     }
-    
     r = requests.post(
         "https://api.openai.com/v1/chat/completions",
         headers=headers,
         json=data,
-        timeout=300
+        timeout=180
     )
-    
     if r.status_code != 200:
-        print(f"OpenAI error: {r.status_code} - {r.text[:300]}")
+        print(f"  OpenAI error: {r.status_code} - {r.text[:200]}")
         return None
-    
     return r.json()["choices"][0]["message"]["content"]
 
 
-def build_article_prompt(article):
+def generate_full_article(article):
     title = article["title"]
     keyword = article["focus_keyword"]
     country = article["country"]
-    
-    if country == "USA":
-        country_context = "United States of America"
-        internal_links = """
-- /best-bank-account-immigrants-usa/
-- /how-to-build-credit-usa-immigrants/
-- /itin-number-immigrants-usa/
-- /remittance-money-transfer-usa/"""
-        authoritative_sources = """
-- Healthcare.gov (official ACA marketplace)
-- CMS.gov (Centers for Medicare & Medicaid Services)
-- KFF.org (Kaiser Family Foundation health policy research)
-- USCIS.gov
-- Insurance Information Institute (iii.org)
-- NAIC.org (National Association of Insurance Commissioners)"""
-    else:
-        country_context = "Canada"
-        internal_links = """
-- /best-bank-accounts-newcomers-canada/
-- /how-to-build-credit-score-canada/
-- /send-money-canada/
-- /student-banking-canada/"""
-        authoritative_sources = """
-- Canada.ca (Government of Canada official website)
-- CMHC.ca (Canada Mortgage and Housing Corporation)
-- Financial Consumer Agency of Canada (FCAC)
-- OHIP / Provincial health ministry websites
-- Equifax Canada / TransUnion Canada
-- Insurance Bureau of Canada (ibc.ca)"""
 
-    prompt = f"""Write a comprehensive, SEO-optimized WordPress article for MoneyAbroadGuide.com with the following specifications:
+    if country == "USA":
+        int_links = "/best-bank-account-immigrants-usa/, /how-to-build-credit-usa-immigrants/, /itin-number-immigrants-usa/"
+        ext_sources = "Healthcare.gov, KFF.org, iii.org, NAIC.org, USCIS.gov"
+        currency = "USD"
+    else:
+        int_links = "/best-bank-accounts-newcomers-canada/, /how-to-build-credit-score-canada/, /send-money-canada/"
+        ext_sources = "Canada.ca, FCAC, ibc.ca, CMHC.ca"
+        currency = "CAD"
+
+    print(f"  Generating Part 1 (Intro + Stories + First 4 sections)...")
+    part1_prompt = f"""Write Part 1 of a comprehensive WordPress article for MoneyAbroadGuide.com.
 
 TITLE: {title}
 FOCUS KEYWORD: {keyword}
-TARGET COUNTRY: {country_context}
-MINIMUM WORD COUNT: 4,500 words
-FORMAT: Full HTML (WordPress Gutenberg-compatible)
+TARGET: {country} newcomers/immigrants
 
-MANDATORY STRUCTURE (in this exact order):
+Write in HTML. Include:
 
-1. **SEO META** (as HTML comment):
-<!-- 
-SEO Title: {title} | MoneyAbroadGuide
-Meta Description: [150-160 char description with focus keyword]
-Focus Keyword: {keyword}
--->
+1. SEO meta comment:
+<!-- SEO Title: {title} | MoneyAbroadGuide | Meta Description: [150-160 chars with keyword] | Focus Keyword: {keyword} -->
 
-2. **KEY TAKEAWAYS BOX** (styled div):
-<div class="key-takeaways-box" style="background:#f0f7ff;border-left:4px solid #0066cc;padding:20px;margin:20px 0;">
-<h3>Key Takeaways</h3>
-<ul>[5-7 critical takeaways for newcomers]</ul>
-</div>
+2. Key Takeaways box (styled div, 6 takeaways minimum):
+<div class="key-takeaways" style="background:#f0f7ff;border-left:4px solid #0066cc;padding:20px 24px;margin:24px 0;border-radius:4px;">
 
-3. **INTRODUCTION** (300+ words):
-- Hook with the immigrant experience struggle
-- Address the exact pain point
-- Promise what article covers
-- Include focus keyword naturally in first 100 words
+3. Introduction (350+ words): Hook with immigrant struggle, address pain point, include keyword in first 100 words, promise what article covers.
 
-4. **TWO REALISTIC NEWCOMER STORIES** (400+ words total):
-Create vivid, realistic stories of 2 immigrants (different backgrounds/countries of origin):
-- Story 1: [Name], recently arrived, faces specific challenge
-- Story 2: [Name], has been in {country} 6 months, overcame obstacle
-Use <blockquote> tags with styling
+4. Two newcomer stories (blockquotes, 200+ words each):
+Story 1: [Amina/Carlos/Chen/Maria - pick fitting name], arrived 3 months ago, specific challenge with {keyword.split()[0]} {keyword.split()[-1] if len(keyword.split()) > 1 else ''}.
+Story 2: [Different name, different origin country], 8 months in {country}, overcame the obstacle, specific outcome.
 
-5. **MAIN BODY SECTIONS** (8-12 H2 sections with H3 subsections):
-Each section minimum 300 words. Cover:
-- What newcomers need to know first
-- Eligibility and requirements
-- Step-by-step process
-- Best options available (with specific names, companies, programs)
-- Costs and what to expect
-- Common mistakes to avoid
-- Tips from experienced immigrants
-- Recent changes for 2026
+5. Four H2 sections (250+ words each) covering:
+- What newcomers need to know first about {keyword} in {country} (overview, key facts, 2026 updates)
+- Eligibility requirements and who qualifies (specific rules, visa types, waiting periods)
+- Step-by-step process to get started (numbered steps, specific actions, timelines)
+- Best options available with real names (5+ specific providers/programs with costs in {currency})
 
-6. **COMPARISON TABLE** (HTML table with proper styling):
-Compare at least 5 specific options with columns: Provider/Option | Best For | Cost | Requirements | Rating
-Style: alternating row colors, professional appearance
+Include:
+- Image placeholder: <!-- IMAGE PLACEHOLDER | Alt: [descriptive] | Prompt: [detailed AI art prompt showing immigrant family/person in relevant situation] | Size: 1200x628 -->
+- Statistics with sources
+- Dollar/dollar amounts
+- Transition words between paragraphs
+- Internal links naturally: {int_links}
 
-7. **PROS AND CONS TABLE**:
-Two-column table comparing pros vs cons
+Output ONLY the HTML. No preamble."""
 
-8. **FAQ SECTION** (8-10 questions):
-Use schema-ready format:
+    part1 = call_openai_section(part1_prompt, max_tokens=4000)
+    if not part1:
+        return None
+
+    print(f"  Part 1: {len(part1.split())} words")
+    time.sleep(2)
+
+    print(f"  Generating Part 2 (Comparison tables + More sections + FAQ)...")
+    part2_prompt = f"""Continue writing Part 2 of the article: "{title}" for MoneyAbroadGuide.com.
+
+Write in HTML. Include:
+
+1. COMPARISON TABLE (HTML, styled, alternating rows):
+Compare 5-6 specific {keyword} options. Columns: Provider/Option | Best For | Monthly Cost ({currency}) | Key Requirements | Rating (stars)
+Style with: border-collapse:collapse, alternating #f8f9fa/#ffffff rows, header #0066cc color.
+
+2. PROS AND CONS TABLE (two-column HTML table):
+Left: Pros (5-6 items) | Right: Cons (4-5 items)
+
+3. Four more H2 sections (250+ words each):
+- Common mistakes newcomers make with {keyword} in {country} (5-7 specific mistakes with explanations)
+- How to save money on {keyword} as a newcomer (actionable tips, specific amounts saved)
+- {country} government programs and assistance for newcomers (specific programs, amounts, eligibility)
+- What to do if you face problems or denials (appeal process, advocacy resources, escalation steps)
+
+4. Data visualization placeholder:
+<!-- DATA VIZ PLACEHOLDER | Type: Bar chart | Title: Average {keyword} costs by provider | Data: [5 data points with specific numbers] -->
+
+5. Infographic placeholder:
+<!-- INFOGRAPHIC PLACEHOLDER | Title: Step-by-step guide to getting {keyword} as a newcomer in {country} | Steps: [7 steps] -->
+
+6. FAQ section (10 questions with detailed answers - schema-ready):
 <div class="faq-section">
 <h2>Frequently Asked Questions</h2>
-[Q&A format with <details>/<summary> or styled divs]
-</div>
-Focus on actual questions newcomers search for
+Format each as: <div class="faq-item"><h3>Question?</h3><p>Answer (50-100 words, specific)</p></div>
 
-9. **IMAGE PLACEHOLDERS** (8+ throughout article):
-Format:
-<!-- IMAGE PLACEHOLDER
-Alt text: [descriptive alt text with keyword]
-Caption: [caption]
-Suggested image: [detailed AI image generation prompt - be specific about scene, people, setting]
-Size: [recommended dimensions]
--->
+Focus on actual search queries immigrants use.
 
-10. **INFOGRAPHIC PLACEHOLDER**:
-<!-- INFOGRAPHIC PLACEHOLDER
-Title: [title]
-Data to visualize: [list 5-7 data points]
-Style: [description]
--->
+7. External sources cited: {ext_sources}
 
-11. **COMPARISON CHART PLACEHOLDER**:
-<!-- COMPARISON CHART PLACEHOLDER
-Type: [bar/line/pie]
-Title: [title]
-Data: [specific data points]
--->
+Output ONLY the HTML. No preamble."""
 
-12. **DATA VISUALIZATION PLACEHOLDER**:
-<!-- DATA VISUALIZATION PLACEHOLDER
-Title: [title]
-Data: [specific statistics]
--->
+    part2 = call_openai_section(part2_prompt, max_tokens=4000)
+    if not part2:
+        return None
 
-13. **INTERNAL LINKS** (naturally integrated):
-Use these paths:{internal_links}
+    print(f"  Part 2: {len(part2.split())} words")
+    time.sleep(2)
 
-14. **EXTERNAL AUTHORITATIVE SOURCES** (in-text citations + reference list):
-Link to:{authoritative_sources}
+    print(f"  Generating Part 3 (Final sections + Conclusion)...")
+    part3_prompt = f"""Write Part 3 (final) of the article: "{title}" for MoneyAbroadGuide.com.
 
-15. **CONCLUSION** (200+ words):
-- Summarize key points
-- Call to action
-- Encouragement for the newcomer journey
+Write in HTML. Include:
 
-WRITING REQUIREMENTS:
-- Empathetic, warm tone that speaks directly to immigrants
-- Use "you" and "your" frequently
-- Include specific dollar amounts, percentages, timelines
-- Reference 2026 current information
-- Use transition words for readability
-- Short paragraphs (3-4 sentences max)
-- Include statistics with sources
-- Rank Math SEO score target: 95+
-- Featured snippet optimized (answer questions in first 40-60 words of H2 sections)
-- Natural keyword density: 1.5-2.5%
+1. Two more H2 sections (300+ words each):
+- Success stories: How real newcomers navigated {keyword} in {country} in 2025-2026 (2-3 mini case studies with specific outcomes)
+- 2026 changes and updates to {keyword} laws/programs in {country} (specific policy changes, new amounts, new rules)
 
-IMPORTANT: Output ONLY the complete HTML content. No preamble, no explanation. Start with the SEO meta comment and end with the conclusion."""
+2. Comparison chart placeholder:
+<!-- COMPARISON CHART | Type: Horizontal bar | Title: {keyword} approval rates by applicant type | Data: [5 categories with percentages] -->
 
-    return prompt
+3. Expert tips section (H2: "Expert Tips From Financial Advisors Who Work With Immigrants"):
+5-7 specific, actionable tips. Quote format with fictional but realistic advisor names.
+
+4. Resource section (H2: "Key Resources for Newcomers"):
+Formatted list of 8-10 specific resources (websites, hotlines, organizations) with descriptions.
+
+5. Conclusion (300+ words):
+- Summarize the immigrant journey with {keyword}
+- Key action steps (numbered)
+- Encouragement
+- CTA to explore related articles on MoneyAbroadGuide.com
+- Internal links: {int_links}
+
+6. Three more image placeholders throughout:
+<!-- IMAGE PLACEHOLDER | Alt: [descriptive alt text] | Prompt: [detailed AI prompt] | Size: 800x500 -->
+
+Total article should reach 4500+ words across all three parts.
+
+Output ONLY the HTML. No preamble."""
+
+    part3 = call_openai_section(part3_prompt, max_tokens=3000)
+    if not part3:
+        return None
+
+    print(f"  Part 3: {len(part3.split())} words")
+
+    full_content = part1 + "\n\n" + part2 + "\n\n" + part3
+    total_words = len(full_content.split())
+    print(f"  TOTAL WORDS: {total_words}")
+
+    return full_content
 
 
 def post_to_wordpress(article, content):
     title = article["title"]
     slug = article["slug"]
-    
     word_count = len(content.split())
-    
+
     data = {
         "title": title,
         "slug": slug,
@@ -351,17 +324,16 @@ def post_to_wordpress(article, content):
         "status": "draft",
         "meta": {
             "rank_math_focus_keyword": article["focus_keyword"],
-            "_yoast_wpseo_focuskw": article["focus_keyword"],
         }
     }
-    
+
     r = requests.post(
         f"{WP_URL}/wp-json/wp/v2/posts",
         headers=WP_HEADERS,
         json=data,
         timeout=60
     )
-    
+
     if r.status_code in [200, 201]:
         post = r.json()
         return {
@@ -390,43 +362,27 @@ results = []
 for i, article in enumerate(ARTICLES):
     print()
     print(f"--- ARTICLE {i+1}/4: {article['title']} ---")
-    print(f"Generating with OpenAI GPT-4o...")
-    
-    prompt = build_article_prompt(article)
-    
-    content = call_openai(prompt)
-    
+
+    content = generate_full_article(article)
+
     if not content:
-        print(f"FAILED to generate content for: {article['title']}")
-        results.append({
-            "success": False,
-            "title": article["title"],
-            "error": "OpenAI generation failed",
-        })
+        print(f"FAILED to generate: {article['title']}")
+        results.append({"success": False, "title": article["title"], "error": "generation failed"})
         continue
-    
+
     word_count = len(content.split())
-    print(f"Content generated: {word_count} words")
-    
-    print(f"Posting to WordPress as draft...")
+    print(f"Posting to WordPress ({word_count} words)...")
     result = post_to_wordpress(article, content)
     results.append(result)
-    
+
     if result["success"]:
-        print(f"DRAFT SAVED:")
-        print(f"  Title: {result['title']}")
-        print(f"  Draft ID: {result['draft_id']}")
-        print(f"  Draft URL: {result['draft_url']}")
-        print(f"  Word Count: {result['word_count']}")
-        print(f"  Status: {result['status']}")
-        print(f"  HTTP: {result['http_status']}")
+        print(f"DRAFT SAVED: ID={result['draft_id']} | Words={result['word_count']} | HTTP={result['http_status']}")
     else:
-        print(f"FAILED: HTTP {result['http_status']}")
-        print(f"Error: {result.get('error', 'unknown')[:200]}")
-    
+        print(f"FAILED: HTTP {result['http_status']} | {result.get('error','')[:100]}")
+
     if i < len(ARTICLES) - 1:
-        print("Waiting 3s before next article...")
-        time.sleep(3)
+        print("Waiting 5s before next article...")
+        time.sleep(5)
 
 # ============================================================
 # FINAL REPORT
@@ -441,7 +397,8 @@ print(f"Articles generated: {success_count}/{len(ARTICLES)}")
 print()
 
 for i, result in enumerate(results):
-    print(f"ARTICLE {i+1}: {result.get('title', 'Unknown')[:60]}")
+    title = result.get('title', 'Unknown')[:65]
+    print(f"ARTICLE {i+1}: {title}")
     if result.get("success"):
         print(f"  Status: SAVED AS DRAFT")
         print(f"  Draft ID: {result.get('draft_id')}")
@@ -450,11 +407,11 @@ for i, result in enumerate(results):
         print(f"  HTTP Status: {result.get('http_status')}")
     else:
         print(f"  Status: FAILED")
-        print(f"  Error: {result.get('error', 'unknown')[:100]}")
+        print(f"  Error: {result.get('error','unknown')[:100]}")
     print()
 
 if success_count == len(ARTICLES):
     print("ALL 4 ARTICLES SUCCESSFULLY SAVED AS WORDPRESS DRAFTS")
 else:
-    print(f"WARNING: Only {success_count}/{len(ARTICLES)} articles saved")
+    print(f"PARTIAL: {success_count}/{len(ARTICLES)} saved")
     exit(1)
