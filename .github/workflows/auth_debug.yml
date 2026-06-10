@@ -19,10 +19,18 @@ jobs:
       - name: Install deps
         run: pip install requests
 
-      - name: Run Auth Test
+      - name: Run Auth Diagnostic
         env:
           WP_URL: ${{ secrets.WP_URL }}
           WP_USER: ${{ secrets.WP_USER }}
           WP_PASSWORD: ${{ secrets.WP_PASSWORD }}
           WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
         run: python3 auth_diag.py
+
+      - name: Create and Delete Test Draft
+        env:
+          WP_URL: ${{ secrets.WP_URL }}
+          WP_USER: ${{ secrets.WP_USER }}
+          WP_PASSWORD: ${{ secrets.WP_PASSWORD }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+        run: python3 test_auth_draft.py
